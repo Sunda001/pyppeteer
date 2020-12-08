@@ -140,8 +140,7 @@ class Launcher(object):
         options = dict()
         options['env'] = self.env
         if not self.dumpio:
-            # discard stdout, it's never read in any case.
-            options['stdout'] = subprocess.DEVNULL
+            options['stdout'] = subprocess.PIPE
             options['stderr'] = subprocess.STDOUT
 
         self.proc = subprocess.Popen(  # type: ignore
@@ -149,9 +148,10 @@ class Launcher(object):
 
         def _close_process(*args: Any, **kwargs: Any) -> None:
             if not self.chromeClosed:
-                self._loop.run_until_complete(self.killChrome())
+                asyncio.ensure_future(self.killChrome())
 
         # don't forget to close browser process
+
         if self.autoClose:
             atexit.register(_close_process)
         if self.handleSIGINT:
@@ -164,7 +164,7 @@ class Launcher(object):
                 signal.signal(signal.SIGHUP, _close_process)
 
         connectionDelay = self.slowMo
-        self.browserWSEndpoint = get_ws_endpoint(self.url)
+        self.browserWSEndpoint = await get_ws_endpoint(self.url)
         logger.info(f'Browser listening on: {self.browserWSEndpoint}')
         self.connection = Connection(self.browserWSEndpoint, self._loop, connectionDelay, )
         browser = await Browser.create(self.connection, [], self.ignoreHTTPSErrors, self.defaultViewport, self.proc,
@@ -218,10 +218,10 @@ class Launcher(object):
             self._cleanup_tmp_user_data_dir()
 
 
-def get_ws_endpoint(url) -> str:
+async def get_ws_endpoint(url) -> str:
     url = url + '/json/version'
     timeout = time.time() + 30
-    while (True):
+    while True:
         if time.time() > timeout:
             raise BrowserError('Browser closed unexpectedly:\n')
         try:
@@ -230,7 +230,7 @@ def get_ws_endpoint(url) -> str:
             break
         except URLError as e:
             continue
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
 
     return data['webSocketDebuggerUrl']
 
@@ -346,7 +346,7 @@ async def connect(options: dict = None, **kwargs: Any) -> Browser:
         browserURL = options.get('browserURL')
         if not browserURL:
             raise BrowserError('Need `browserWSEndpoint` or `browserURL` option.')
-        browserWSEndpoint = get_ws_endpoint(browserURL)
+        browserWSEndpoint = await get_ws_endpoint(browserURL)
     connectionDelay = options.get('slowMo', 0)
     connection = Connection(browserWSEndpoint, options.get('loop', asyncio.get_event_loop()), connectionDelay)
     browserContextIds = (await connection.send('Target.getBrowserContexts')).get('browserContextIds', [])
