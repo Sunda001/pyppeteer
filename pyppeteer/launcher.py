@@ -148,7 +148,7 @@ class Launcher(object):
 
         def _close_process(*args: Any, **kwargs: Any) -> None:
             if not self.chromeClosed:
-                asyncio.ensure_future(self.killChrome())
+                self._loop.run_until_complete(self.killChrome())
 
         # don't forget to close browser process
 
