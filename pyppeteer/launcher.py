@@ -88,6 +88,7 @@ class Launcher(object):
         self.defaultViewport = options.get('defaultViewport', {'width': 800, 'height': 600})  # noqa: E501
         self.slowMo = options.get('slowMo', 0)
         self.timeout = options.get('timeout', 30000)
+        self.wsEndpointTimeout = option.get('', 30000)
         self.autoClose = options.get('autoClose', True)
 
         logLevel = options.get('logLevel')
@@ -164,7 +165,7 @@ class Launcher(object):
                 signal.signal(signal.SIGHUP, _close_process)
 
         connectionDelay = self.slowMo
-        self.browserWSEndpoint = await get_ws_endpoint(self.url)
+        self.browserWSEndpoint = await get_ws_endpoint(self.url, self.wsEndpointTimeout)
         logger.info(f'Browser listening on: {self.browserWSEndpoint}')
         self.connection = Connection(self.browserWSEndpoint, self._loop, connectionDelay, )
         browser = await Browser.create(self.connection, [], self.ignoreHTTPSErrors, self.defaultViewport, self.proc,
@@ -218,9 +219,9 @@ class Launcher(object):
             self._cleanup_tmp_user_data_dir()
 
 
-async def get_ws_endpoint(url) -> str:
+async def get_ws_endpoint(url, timeout) -> str:
     url = url + '/json/version'
-    timeout = time.time() + 30
+    timeout = time.time() + (timeout / 1000)
     while True:
         if time.time() > timeout:
             raise BrowserError('Browser closed unexpectedly:\n')
@@ -346,7 +347,7 @@ async def connect(options: dict = None, **kwargs: Any) -> Browser:
         browserURL = options.get('browserURL')
         if not browserURL:
             raise BrowserError('Need `browserWSEndpoint` or `browserURL` option.')
-        browserWSEndpoint = await get_ws_endpoint(browserURL)
+        browserWSEndpoint = await get_ws_endpoint(browserURL, self.wsEndpointTimeout)
     connectionDelay = options.get('slowMo', 0)
     connection = Connection(browserWSEndpoint, options.get('loop', asyncio.get_event_loop()), connectionDelay)
     browserContextIds = (await connection.send('Target.getBrowserContexts')).get('browserContextIds', [])
