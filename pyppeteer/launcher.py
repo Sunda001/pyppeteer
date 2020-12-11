@@ -30,6 +30,7 @@ from pyppeteer.helper import addEventListener, debugError, removeEventListeners
 from pyppeteer.target import Target
 from pyppeteer.util import check_chromium, chromium_executable
 from pyppeteer.util import download_chromium, merge_dict, get_free_port
+from http.client import BadStatusLine
 
 if TYPE_CHECKING:
     from typing import Optional  # noqa: F401
@@ -229,7 +230,7 @@ async def get_ws_endpoint(url, timeout) -> str:
             with urlopen(url) as f:
                 data = json.loads(f.read().decode())
             break
-        except URLError as e:
+        except (URLError, BadStatusLine)
             continue
         await asyncio.sleep(0.1)
 
